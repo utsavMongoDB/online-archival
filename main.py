@@ -5,27 +5,26 @@ import datetime
 import boto3
 import config
 
-# logging = log.setup_logger()
 
-def run_archival():
+def run_archival(database, collection, s3_bucket):
     try:
         # Data federation URI
-        uri = f"mongodb+srv://{config.user}:{config.password}@{config.server_addr}.mongodb.net/?retryWrites=true&w=majority"
-        query_dict = {'st': "x+45200-066500"}
+        uri = f"mongodb+srv://{config.user}:{config.password}@{config.server_addr}.mongodb.net/"
+        query_dict = {'st': "x+47600-047900"}
 
         # Create a client object to connect to the MongoDB database
-        client = cq.MongoAtlasClient(uri, collection_name='sample_weatherdata', database='data', bucket_name='partner-demo')
-        
-        s3_resource = boto3.resource(
+        client = cq.MongoAtlasClient(uri=uri, database=database, collection=collection, bucket=s3_bucket)
+
+        s3_client = boto3.client(
             "s3",
-            region_name="us-east-1",
+            region_name=config.AWS_REGION,
             aws_access_key_id=config.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=config.AWS_SECRET_ACCESS_KEY,
             aws_session_token=config.AWS_SESSION_TOKEN
         )
-        
-        print("fetching records for that match query")
-        client.find_records_by_field(query_dict, s3_resource)
+
+        print("fetching records")
+        client.find_and_archive(query_dict, s3_client)
 
     except Exception as e:
         print(e)
@@ -33,4 +32,5 @@ def run_archival():
 
 if __name__ == "__main__":
     print("----------------started archival process----------------")
-    run_archival()
+    run_archival(database='sample_weatherdata',
+                 collection='data', s3_bucket='partner-demo')

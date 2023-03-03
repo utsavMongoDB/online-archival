@@ -2,7 +2,7 @@ import logging
 import datetime
 
 def setup_logger():
-    logger = logging.getLogger("my_logger")
+    logger = logging.getLogger("archival_logger")
     logger.setLevel(logging.DEBUG)
     
     # create a file handler
