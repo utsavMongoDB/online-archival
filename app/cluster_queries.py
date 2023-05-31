@@ -4,6 +4,7 @@ from bson import json_util
 import pandas as pd
 from multiprocessing.pool import ThreadPool 
 from bson.objectid import ObjectId
+import bson 
 
 class MongoAtlasClient:
     
@@ -36,29 +37,31 @@ class MongoAtlasClient:
             query_dict (dict): A dictionary representing the query to run.
         """
         try:
-            documents_found = self.coll.find(filter=query_dict)
-            print(self.coll.count_documents(filter=query_dict))
+            documents_found = self.coll.find(filter=query_dict).limit(self.batch_size)
+            archival_count = self.coll.count_documents(filter=query_dict)
             parquets = []
 
-            print("starting conversion to parquet")
-            for i, document in enumerate(documents_found):
-                # Break at batch_size limit point 
-                if i == self.batch_size:
-                    break
-                json_data = json.loads(json_util.dumps(document))
-                # Create parquet file from json
-                df = pd.json_normalize(json_data, max_level=0)
-                parquets.append((df.to_parquet(), document['_id']))
-            
-            print(f"{len(parquets)} Parquets starting upload to S3")
-            # Create threadpool for async archival process
-            pool = ThreadPool(processes=len(parquets)*2) 
-            pool.starmap(self.archive_record,  parquets)
-            print(f"{len(self.archived_records)} archived")
+            if archival_count > 0:
+                print("starting conversion to parquet")
+                for i, document in enumerate(documents_found):
+                    json_data = json.loads(json_util.dumps(document))
+                    # Create parquet file from json
+                    df = pd.json_normalize(json_data, max_level=1)
+                    # df = pd.DataFrame(json_data)
+                    parquets.append((df.to_parquet(use_dictionary=False), document['_id']))
+                
+                # print(f"{len(parquets)} Parquets starting upload to S3")
+                # # Create threadpool for async archival process
+                pool = ThreadPool(processes=len(parquets)*2) 
+                pool.starmap(self.archive_record,  parquets)
+                print(f"{len(self.archived_records)} archived")
 
-            # Delete files from cluster in batch
-            result = self.coll.bulk_write( self.archived_records )
-            print(f"{result.deleted_count} documents deleted from hot data")
+                # Delete files from cluster in batch
+                result = self.coll.bulk_write( self.archived_records )
+                print(f"{result.deleted_count} documents deleted from hot data")
+            
+            else:
+                print("No documents to archive")
 
         except Exception as e:
             print(f"exception : {e}")

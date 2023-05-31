@@ -1,17 +1,16 @@
 import app.cluster_queries as cluster_queries
 import schedule
-import time
-import datetime
 import boto3
 import config
 import app.federation_queries as federation
+from bson.objectid import ObjectId
 
 def run_archival():
     try:
+        print("----------------started archival process----------------")
         # MongoDB Cluster URI
         uri = f"mongodb+srv://{config.USER}:{config.PASSWORD}@{config.SERVER_ADDR}.mongodb.net/"
-        query_dict = {'delivered': True}
-
+        query_dict = {'archive': True}
 
         # Create S3 client for S3
         s3_client = boto3.client(
@@ -24,7 +23,7 @@ def run_archival():
 
         # Create a client object to connect to the MongoDB database
         client = cluster_queries.MongoAtlasClient(uri=uri, database=config.DATABASE, collection=config.COLLECTION,
-                                     bucket=config.S3_BUCKET, batch_size=config.BATCH_SIZE, s3_client=s3_client)
+                                                  bucket=config.S3_BUCKET, batch_size=config.BATCH_SIZE, s3_client=s3_client)
 
         print("fetching records")
         # client.update_many()
@@ -36,17 +35,23 @@ def run_archival():
 
 def read_data():
     try:
-        uri = f"mongodb+srv://{config.FED_USER}:{config.FED_PASSWORD}@{config.FED_SERVER_ADDR}.mongodb.net/?ssl=true&authSource=admin"
-
-        query = {'st': "x+11600+070400"}
-        federation_client = federation.DataFederationClient(uri=uri, database=config.FED_DATABASE, collection=config.FED_COLLECTION)
-
+        uri = f"mongodb://{config.FED_USER}:{config.FED_PASSWORD}@{config.FED_SERVER_ADDR}.mongodb.net/test?ssl=true&authSource=admin"
+        print("uri - ", uri)
+        query = '<ADD_YOUR_QUERY>'
+        federation_client = federation.DataFederationClient(
+                uri=uri, 
+                database=config.FED_DATABASE, 
+                collection=config.FED_COLLECTION
+            )
         federation_client.find(query)
-
 
     except Exception as e:
         print(e)
 
 if __name__ == "__main__":
-    print("----------------started archival process----------------")
     run_archival()
+    # schedule.every(config.ARCHIVE_FREQ).minutes.do(run_archival)
+
+    # while True:
+    #     # Checks whether a scheduled task is pending to run
+    #     schedule.run_pending()
